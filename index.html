@@ -43,7 +43,9 @@ th{color:var(--muted);font-size:11px;text-transform:uppercase}td .actions{margin
 <h2>Staff login</h2><p class="hint">Sign in with your staff account.</p>
 <label for="email">Email address</label><input id="email" type="email" autocomplete="username" placeholder="staff@example.com">
 <label for="password">Password</label><input id="password" type="password" autocomplete="current-password" placeholder="Password">
-<div class="actions"><button id="signInBtn">Sign in</button><button class="secondary" id="signUpBtn">Create account</button></div>
+<div class="actions">
+    <button id="signInBtn">Sign in</button>
+</div>
 <div id="authStatus" class="status"></div>
 </section>
 
@@ -84,11 +86,16 @@ th{color:var(--muted);font-size:11px;text-transform:uppercase}td .actions{margin
 <div class="stat"><small>Expected cash</small><strong id="reportCash">K0.00</strong></div>
 <div class="stat"><small>Products counted</small><strong id="reportProducts">0</strong></div>
 </div>
+
+
+
+  <div class="actions">
+      <button id="exportExcelBtn">Download Full Daily Report</button>
+  </div>
+
 <div class="table-wrap"><table><thead><tr><th>Product</th><th>Opening</th><th>Remaining</th><th>Sold</th><th>Cash</th></tr></thead><tbody id="reportRows"><tr><td colspan="5">Choose a date.</td></tr></tbody></table></div>
+
 <div id="reportStatus" class="status"></div>
-<button id="exportExcelBtn">
-  Download Excel Report
-</button>
 </section>
 
 <section class="card" id="productFormCard">
@@ -132,7 +139,11 @@ function cell(row,value){const td=document.createElement("td");td.textContent=va
 function escapeText(s){return String(s??"");}
 
 if(configured && window.supabase){db=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);$("setupWarning").classList.add("hidden");}
-else{$("authStatus").textContent="Add your Supabase Project URL and Publishable key in this file to connect."; $("signInBtn").disabled=true;$("signUpBtn").disabled=true;}
+else {
+    $("authStatus").textContent =
+        "Add your Supabase Project URL and Publishable key in this file to connect.";
+    $("signInBtn").disabled = true;
+}
 
 
 
@@ -467,18 +478,57 @@ async function updateSession(){
  $("authCard").classList.toggle("hidden",!!session);$("appArea").classList.toggle("hidden",!session);
  if(session){$("signedInAs").textContent="Signed in as "+(session.user.email||"staff user");await loadProducts();await loadReport(todayLocal());}
 }
-$("signInBtn").onclick=async()=>{
- status("authStatus","Signing in...");
- const {error}=await db.auth.signInWithPassword({email:$("email").value.trim(),password:$("password").value});
- if(error)return status("authStatus",error.message,"error");await updateSession();
+
+$("signInBtn").onclick = async () => {
+    const btn = $("signInBtn");
+    const email = $("email").value.trim().toLowerCase();
+    const password = $("password").value;
+
+    if (!email || !password) {
+        return status(
+            "authStatus",
+            "Please enter your email address and password.",
+            "error"
+        );
+    }
+
+    btn.disabled = true;
+    btn.textContent = "Signing in...";
+    status("authStatus", "Checking your login details...");
+
+    try {
+        const { data, error } = await db.auth.signInWithPassword({
+            email: email,
+            password: password
+        });
+
+        if (error) {
+            status(
+                "authStatus",
+                "Login failed: " + error.message,
+                "error"
+            );
+            return;
+        }
+
+        if (data.session) {
+            status("authStatus", "Login successful.", "success");
+            await updateSession();
+        }
+
+    } catch (error) {
+        status(
+            "authStatus",
+            "Something went wrong: " + error.message,
+            "error"
+        );
+    } finally {
+        btn.disabled = false;
+        btn.textContent = "Sign in";
+    }
 };
-$("signUpBtn").onclick=async()=>{
- if($("password").value.length<8)return status("authStatus","Use a password with at least 8 characters.","error");
- status("authStatus","Creating account...");
- const {data,error}=await db.auth.signUp({email:$("email").value.trim(),password:$("password").value});
- if(error)return status("authStatus",error.message,"error");
- if(!data.session)status("authStatus","Account created. Confirm your email, then sign in.","success");else await updateSession();
-};
+
+
 $("signOutBtn").onclick=async()=>{await db.auth.signOut();await updateSession();};
 $("refreshBtn").onclick=loadProducts;
 $("productForm").onsubmit=async e=>{
@@ -547,6 +597,82 @@ if(db){db.auth.onAuthStateChange(()=>setTimeout(updateSession,0));updateSession(
 $("countDate").addEventListener("change", () => {
     loadDailyCount($("countDate").value);
 });
+
+
+
+
+
+
+$("exportExcelBtn").onclick = async () => {
+    const btn = $("exportExcelBtn");
+    const date = $("reportDate").value;
+
+    if (!date) {
+        return alert("Please choose a report date.");
+    }
+
+    btn.disabled = true;
+    btn.textContent = "Preparing Excel...";
+
+    try {
+        const { data, error } = await db
+            .from("daily_stock_counts")
+            .select(`
+                count_date,
+                product_name,
+                opening_stock,
+                remaining_stock,
+                quantity_sold,
+                selling_price,
+                expected_cash
+            `)
+            .eq("count_date", date)
+            .order("product_name");
+
+        if (error) throw error;
+
+        if (!data || data.length === 0) {
+            return alert("There is no daily report for this date.");
+        }
+
+        // Prepare all report details for Excel
+        const reportData = data.map(item => ({
+            "Report Date": item.count_date,
+            "Product": item.product_name,
+            "Opening Stock": Number(item.opening_stock || 0),
+            "Remaining Stock": Number(item.remaining_stock || 0),
+            "Units Sold": Number(item.quantity_sold || 0),
+            "Selling Price (K)": Number(item.selling_price || 0),
+            "Expected Cash (K)": Number(item.expected_cash || 0)
+        }));
+
+        // Create Excel workbook
+        const workbook = XLSX.utils.book_new();
+
+        const worksheet = XLSX.utils.json_to_sheet(reportData);
+
+        XLSX.utils.book_append_sheet(
+            workbook,
+            worksheet,
+            "Daily Report"
+        );
+
+        // Download Excel file
+        XLSX.writeFile(
+            workbook,
+            `Daily-Report-${date}.xlsx`
+        );
+
+    } catch (error) {
+        alert("Excel download failed: " + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = "Download Full Daily Report";
+    }
+};
+
+
+
 
 </script>
 </body>
