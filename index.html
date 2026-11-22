@@ -86,6 +86,9 @@ th{color:var(--muted);font-size:11px;text-transform:uppercase}td .actions{margin
 </div>
 <div class="table-wrap"><table><thead><tr><th>Product</th><th>Opening</th><th>Remaining</th><th>Sold</th><th>Cash</th></tr></thead><tbody id="reportRows"><tr><td colspan="5">Choose a date.</td></tr></tbody></table></div>
 <div id="reportStatus" class="status"></div>
+<button id="exportExcelBtn">
+  Download Excel Report
+</button>
 </section>
 
 <section class="card" id="productFormCard">
@@ -113,6 +116,7 @@ th{color:var(--muted);font-size:11px;text-transform:uppercase}td .actions{margin
 </section>
 </main>
 
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script>
 const SUPABASE_URL = "https://xcqdncbssudmsbtommge.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_VohyfUQBhrxRKZocA9w1RA_XNaaA4vM";
@@ -130,12 +134,146 @@ function escapeText(s){return String(s??"");}
 if(configured && window.supabase){db=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);$("setupWarning").classList.add("hidden");}
 else{$("authStatus").textContent="Add your Supabase Project URL and Publishable key in this file to connect."; $("signInBtn").disabled=true;$("signUpBtn").disabled=true;}
 
+
+
+
+
+async function fetchAllRows(table, columns, date = null) {
+    let allRows = [];
+    let start = 0;
+    const pageSize = 1000;
+
+    while (true) {
+        let query = db.from(table).select(columns);
+
+        if (date) {
+            query = query.eq("count_date", date);
+        }
+
+        const { data, error } = await query
+            .range(start, start + pageSize - 1);
+
+        if (error) throw error;
+
+        allRows = allRows.concat(data || []);
+
+        if (!data || data.length < pageSize) break;
+
+        start += pageSize;
+    }
+
+    return allRows;
+}
+
+$("exportExcelBtn").onclick = async () => {
+    const btn = $("exportExcelBtn");
+
+    try {
+        const selectedDate = $("reportDate").value;
+
+        if (!selectedDate) {
+            return alert("Please choose a report date.");
+        }
+
+        btn.disabled = true;
+        btn.textContent = "Preparing Excel...";
+
+        const [stock, sales] = await Promise.all([
+            fetchAllRows(
+                "products",
+                "name, selling_price, current_stock"
+            ),
+            fetchAllRows(
+                "daily_stock_counts",
+                "count_date, product_name, opening_stock, remaining_stock, quantity_sold, selling_price, expected_cash",
+                selectedDate
+            )
+        ]);
+
+        const stockData = stock.map(p => ({
+            "Product": p.name,
+            "Selling Price (K)": Number(p.selling_price || 0),
+            "Current Stock": Number(p.current_stock || 0)
+        }));
+
+        const salesData = sales.map(s => ({
+            "Date": s.count_date,
+            "Product": s.product_name,
+            "Opening Stock": Number(s.opening_stock || 0),
+            "Remaining Stock": Number(s.remaining_stock || 0),
+            "Quantity Sold": Number(s.quantity_sold || 0),
+            "Selling Price (K)": Number(s.selling_price || 0),
+            "Expected Cash (K)": Number(s.expected_cash || 0)
+        }));
+
+        const totalUnits = sales.reduce(
+            (sum, s) => sum + Number(s.quantity_sold || 0), 0
+        );
+
+        const totalCash = sales.reduce(
+            (sum, s) => sum + Number(s.expected_cash || 0), 0
+        );
+
+        const workbook = XLSX.utils.book_new();
+
+        const stockSheet = XLSX.utils.json_to_sheet(stockData);
+        const salesSheet = XLSX.utils.json_to_sheet(salesData);
+
+        const summarySheet = XLSX.utils.aoa_to_sheet([
+            ["BAR STOCK DAILY REPORT"],
+            ["Report Date", selectedDate],
+            ["Total Products Counted", sales.length],
+            ["Total Units Sold", totalUnits],
+            ["Total Expected Cash (K)", totalCash]
+        ]);
+
+        XLSX.utils.book_append_sheet(
+            workbook, summarySheet, "Daily Summary"
+        );
+
+        XLSX.utils.book_append_sheet(
+            workbook, stockSheet, "Stock Summary"
+        );
+
+        XLSX.utils.book_append_sheet(
+            workbook, salesSheet, "Daily Sales"
+        );
+
+        XLSX.writeFile(
+            workbook,
+            `Bar-Stock-Report-${selectedDate}.xlsx`
+        );
+
+    } catch (error) {
+        alert("Excel export failed: " + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = "Download Excel Report";
+    }
+};
+
+
+
+
+
 async function loadProducts(){
  const {data,error}=await db.from("products").select("id,name,selling_price,current_stock").order("name");
  if(error){status("productStatus","Could not load products: "+error.message,"error");return;}
- products=data||[];renderProducts();updateDashboard();buildCountRows();buildProductSelect();
+
+products = data || [];
+renderProducts();
+updateDashboard();
+buildProductSelect();
+await loadDailyCount($("countDate").value);
+ 
  status("productStatus",`Loaded ${products.length} product(s).`,"success");
 }
+
+
+
+
+
+
 function renderProducts(){
  const body=$("productRows");body.replaceChildren();
  if(!products.length){const tr=document.createElement("tr");cell(tr,"No products yet. Add one below.");body.appendChild(tr);return;}
@@ -151,10 +289,25 @@ function updateDashboard(){
  $("totalProducts").textContent=products.length;
  $("totalStock").textContent=products.reduce((s,p)=>s+Number(p.current_stock||0),0);
 }
+
+
 function buildProductSelect(){
- const s=$("addStockProduct");s.replaceChildren(new Option("Select product",""));
- products.forEach(p=>s.add(new Option(p.name,p.id)));
+    const s = $("addStockProduct");
+    const selected = s.value;
+
+    s.replaceChildren(new Option("Select product", ""));
+
+    products.forEach(p => {
+        s.add(new Option(p.name, String(p.id)));
+    });
+
+    // Keep the selected product after refreshing
+    if (products.some(p => String(p.id) === selected)) {
+        s.value = selected;
+    }
 }
+
+
 function startEdit(p){
  $("editingId").value=p.id;$("productName").value=p.name;$("sellPrice").value=p.selling_price;$("currentStock").value=p.current_stock;
  $("productFormTitle").textContent="Edit product";$("saveProductBtn").textContent="Update product";$("cancelEditBtn").classList.remove("hidden");
@@ -170,28 +323,118 @@ async function deleteProduct(p){
  if(error){status("productStatus","Could not delete product: "+error.message,"error");return;}
  status("productStatus",`${p.name} deleted.`,"success");await loadProducts();
 }
-function buildCountRows(){
- const body=$("countRows");body.replaceChildren();
- if(!products.length){const tr=document.createElement("tr");cell(tr,"Add products first.");body.appendChild(tr);return;}
- products.forEach(p=>{
-  const tr=document.createElement("tr");tr.dataset.id=p.id;tr.dataset.opening=Number(p.current_stock||0);
-  cell(tr,p.name);cell(tr,p.current_stock);
-  const td=document.createElement("td"),input=document.createElement("input");input.type="number";input.min="0";input.step="1";input.max=String(p.current_stock);input.value=p.current_stock;input.className="remainingInput";input.style.minWidth="90px";td.appendChild(input);tr.appendChild(td);
-  const soldTd=cell(tr,"0");soldTd.className="soldValue";
-  const cashTd=cell(tr,money(0));cashTd.className="cashValue";
-  input.addEventListener("input",()=>{
-   const remaining=Math.max(0,Number(input.value||0)),sold=Number(tr.dataset.opening)-remaining;
-   soldTd.textContent=Number.isInteger(sold)&&sold>=0?sold:"Check quantity";
-   cashTd.textContent=sold>=0?money(sold*Number(p.selling_price||0)):"—";
-  });
- });
+
+
+function buildCountRows(savedCounts = []) {
+    const body = $("countRows");
+    body.replaceChildren();
+
+    if (!products.length) {
+        const tr = document.createElement("tr");
+        cell(tr, "No products found. Add products first.");
+        body.appendChild(tr);
+        return;
+    }
+
+    products.forEach(p => {
+        const saved = savedCounts.find(
+            r => String(r.product_id) === String(p.id)
+        );
+
+        const opening = saved
+            ? Number(saved.opening_stock)
+            : Number(p.current_stock || 0);
+
+        const remaining = saved
+            ? Number(saved.remaining_stock)
+            : opening;
+
+        const tr = document.createElement("tr");
+        tr.dataset.id = String(p.id);
+        tr.dataset.opening = opening;
+
+        cell(tr, p.name);
+        cell(tr, opening);
+
+        const td = document.createElement("td");
+        const input = document.createElement("input");
+
+        input.type = "number";
+        input.min = "0";
+        input.step = "1";
+        input.max = String(opening);
+        input.value = remaining;
+        input.className = "remainingInput";
+        input.style.minWidth = "90px";
+
+        td.appendChild(input);
+        tr.appendChild(td);
+
+        const soldTd = cell(tr, "0");
+        const cashTd = cell(tr, money(0));
+
+        soldTd.className = "soldValue";
+        cashTd.className = "cashValue";
+
+        function calculate() {
+            const value = input.value === "" ? NaN : Number(input.value);
+            const sold = opening - value;
+
+            if (!Number.isInteger(value) || value < 0 || value > opening) {
+                soldTd.textContent = "Check quantity";
+                cashTd.textContent = "—";
+                return;
+            }
+
+            soldTd.textContent = sold;
+            cashTd.textContent = money(sold * Number(p.selling_price || 0));
+        }
+
+        input.addEventListener("input", calculate);
+        calculate();
+
+        body.appendChild(tr);
+    });
 }
+
+
+
+async function loadDailyCount(date) {
+    if (!date) return;
+
+    status("countStatus", "Loading daily stock count...");
+
+    const { data, error } = await db
+        .from("daily_stock_counts")
+        .select("*")
+        .eq("count_date", date);
+
+    if (error) {
+        status("countStatus", "Could not load daily count: " + error.message, "error");
+        buildCountRows();
+        return;
+    }
+
+    buildCountRows(data || []);
+
+    status(
+        "countStatus",
+        data && data.length
+            ? "Previously saved stock count loaded."
+            : "No saved count for this date. Enter the remaining stock.",
+        "success"
+    );
+}
+
+
+
+
 async function saveDailyCount(){
  const date=$("countDate").value;if(!date)return status("countStatus","Choose a count date.","error");
  if(!products.length)return status("countStatus","There are no products to count.","error");
  const rows=[...$("countRows").querySelectorAll("tr[data-id]")],records=[];
  for(const tr of rows){
-  const p=products.find(x=>x.id===tr.dataset.id),opening=Number(tr.dataset.opening),input=tr.querySelector(".remainingInput"),remaining=Number(input.value);
+  const p=products.find(x=>String(x.id)===String(tr.dataset.id)),opening=Number(tr.dataset.opening),input=tr.querySelector(".remainingInput"),remaining=Number(input.value);
   if(!Number.isInteger(remaining)||remaining<0||remaining>opening)return status("countStatus",`Check remaining stock for ${p.name}. It must be between 0 and ${opening}.`,"error");
   const sold=opening-remaining;
   records.push({product_id:p.id,product_name:p.name,count_date:date,opening_stock:opening,remaining_stock:remaining,quantity_sold:sold,selling_price:Number(p.selling_price||0),expected_cash:sold*Number(p.selling_price||0)});
@@ -251,14 +494,45 @@ $("productForm").onsubmit=async e=>{
  resetProductForm();status("saveStatus",id?"Product updated.":"Product added.","success");await loadProducts();
 };
 $("cancelEditBtn").onclick=resetProductForm;
-$("addStockBtn").onclick=async()=>{
- const id=$("addStockProduct").value,qty=Number($("stockToAdd").value),p=products.find(x=>x.id===id);
- if(!p)return status("addStockStatus","Choose a product.","error");
- if(!Number.isInteger(qty)||qty<1)return status("addStockStatus","Enter a whole number greater than zero.","error");
- const {error}=await db.from("products").update({current_stock:Number(p.current_stock||0)+qty}).eq("id",id);
- if(error)return status("addStockStatus","Could not add stock: "+error.message,"error");
- $("stockToAdd").value="";status("addStockStatus",`${qty} units added to ${p.name}.`,"success");await loadProducts();
+
+
+$("addStockBtn").onclick = async () => {
+    const id = $("addStockProduct").value;
+    const qty = Number($("stockToAdd").value);
+
+    const p = products.find(x => String(x.id) === String(id));
+
+    if (!p) {
+        return status("addStockStatus", "Please select a product.", "error");
+    }
+
+    if (!Number.isInteger(qty) || qty < 1) {
+        return status("addStockStatus", "Enter a valid quantity.", "error");
+    }
+
+    const newStock = Number(p.current_stock || 0) + qty;
+
+    const { error } = await db
+        .from("products")
+        .update({ current_stock: newStock })
+        .eq("id", p.id);
+
+    if (error) {
+        return status("addStockStatus", "Could not add stock: " + error.message, "error");
+    }
+
+    $("stockToAdd").value = "";
+
+    status(
+        "addStockStatus",
+        `${qty} units added to ${p.name}. New stock: ${newStock}`,
+        "success"
+    );
+
+    await loadProducts();
 };
+
+
 $("saveCountBtn").onclick=saveDailyCount;
 $("loadReportsBtn").onclick=()=>loadReport($("reportDate").value);
 $("reportDate").onchange=()=>loadReport($("reportDate").value);
@@ -268,6 +542,12 @@ document.querySelectorAll("[data-tab]").forEach(btn=>btn.onclick=()=>{
 });
 $("countDate").value=todayLocal();$("reportDate").value=todayLocal();
 if(db){db.auth.onAuthStateChange(()=>setTimeout(updateSession,0));updateSession();}
+
+
+$("countDate").addEventListener("change", () => {
+    loadDailyCount($("countDate").value);
+});
+
 </script>
 </body>
 </html>
