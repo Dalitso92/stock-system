@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bar Stock Manager</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root { --wine:#8f1835; --pink:#fff0f3; --ink:#30232a; --muted:#756873; --line:#eadde2; --green:#18794e; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:Arial,sans-serif; color:var(--ink); background:#faf7f8; }
+    header { background:var(--wine); color:white; padding:22px 18px; }
+    header .wrap, main { max-width:900px; margin:auto; }
+    h1 { margin:0 0 5px; font-size:25px; }
+    header p { margin:0; opacity:.9; font-size:14px; }
+    main { padding:22px 16px 48px; }
+    .card { background:white; border:1px solid var(--line); border-radius:14px; padding:18px; margin-bottom:16px; box-shadow:0 3px 14px #31101a0a; }
+    h2 { margin:0 0 14px; font-size:18px; }
+    label { display:block; font-size:13px; font-weight:700; margin:12px 0 6px; }
+    input { width:100%; padding:12px; border:1px solid #d8cbd1; border-radius:9px; font-size:16px; background:white; }
+    button { border:0; border-radius:9px; padding:12px 15px; font-weight:700; cursor:pointer; background:var(--wine); color:white; font-size:14px; }
+    button.secondary { background:#f4e8ec; color:var(--wine); }
+    button:disabled { opacity:.55; cursor:not-allowed; }
+    .actions { display:flex; gap:9px; flex-wrap:wrap; margin-top:14px; }
+    .hint, .status { color:var(--muted); font-size:13px; line-height:1.5; }
+    .status { margin-top:12px; white-space:pre-wrap; }
+    .success { color:var(--green); } .error { color:#b42318; }
+    .hidden { display:none; }
+    .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+    table { width:100%; border-collapse:collapse; font-size:14px; }
+    th,td { text-align:left; padding:11px 8px; border-bottom:1px solid var(--line); }
+    th { color:var(--muted); font-size:12px; text-transform:uppercase; }
+    .table-wrap { overflow-x:auto; }
+    .topline { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+    @media(max-width:560px) { .grid { grid-template-columns:1fr; } main { padding:16px 12px 35px; } }
+  </style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>Bar Stock Manager</h1>
+    <p>Stock records stored online</p>
+  </div>
+</header>
+
+<main>
+  <section class="card" id="setupWarning">
+    <h2>Connect your Supabase project</h2>
+    <p class="hint">Open this file in a text editor and replace the two placeholder values in the JavaScript section with your own Project URL and Publishable key. Do not add your Supabase secret key here.</p>
+  </section>
+
+  <section class="card" id="authCard">
+    <h2>Staff login</h2>
+    <p class="hint">Use an account created for this bar. If email confirmation is enabled in Supabase, confirm the email before signing in.</p>
+    <label for="email">Email address</label>
+    <input id="email" type="email" autocomplete="username" placeholder="staff@example.com">
+    <label for="password">Password</label>
+    <input id="password" type="password" autocomplete="current-password" placeholder="Enter password">
+    <div class="actions">
+      <button id="signInBtn">Sign in</button>
+      <button class="secondary" id="signUpBtn">Create account</button>
+    </div>
+    <div id="authStatus" class="status" role="status"></div>
+  </section>
+
+  <section id="appArea" class="hidden">
+    <section class="card">
+      <div class="topline">
+        <div>
+          <h2 style="margin-bottom:4px">Products</h2>
+          <div class="hint" id="signedInAs"></div>
+        </div>
+        <div class="actions" style="margin-top:0">
+          <button class="secondary" id="refreshBtn">Refresh</button>
+          <button class="secondary" id="signOutBtn">Sign out</button>
+        </div>
+      </div>
+      <div id="productStatus" class="status" role="status"></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Product</th><th>Buy price</th><th>Sell price</th><th>Stock</th></tr></thead>
+          <tbody id="productRows"><tr><td colspan="4">Sign in to load products.</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Add a product</h2>
+      <p class="hint">This adds a product record to the products table. Stock deliveries and sales movements will be added in a later stage.</p>
+      <form id="productForm">
+        <label for="productName">Product name</label>
+        <input id="productName" required maxlength="100" placeholder="e.g. Castle Big">
+        <div class="grid">
+          <div>
+            <label for="buyPrice">Buying price (K)</label>
+            <input id="buyPrice" type="number" min="0" step="0.01" value="0" required>
+          </div>
+          <div>
+            <label for="sellPrice">Selling price (K)</label>
+            <input id="sellPrice" type="number" min="0" step="0.01" value="0" required>
+          </div>
+        </div>
+        <label for="currentStock">Current stock (units)</label>
+        <input id="currentStock" type="number" min="0" step="1" value="0" required>
+        <div class="actions"><button type="submit" id="saveProductBtn">Save product</button></div>
+      </form>
+      <div id="saveStatus" class="status" role="status"></div>
+    </section>
+  </section>
+</main>
+
+<script>
+  // 1) Replace these placeholders with your own Supabase project details.
+  const SUPABASE_URL = "https://xcqdncbssudmsbtommge.supabase.co";
+  const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_VohyfUQBhrxRKZocA9w1RA_XNaaA4vM";
+
+  const configured =
+    SUPABASE_URL.startsWith("https://") &&
+    !SUPABASE_URL.includes("PASTE_") &&
+    SUPABASE_PUBLISHABLE_KEY.startsWith("sb_publishable_") &&
+    !SUPABASE_PUBLISHABLE_KEY.includes("PASTE_");
+
+  const $ = (id) => document.getElementById(id);
+  let supabaseClient = null;
+
+  if (configured && window.supabase) {
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+    $("setupWarning").classList.add("hidden");
+  } else {
+    $("authStatus").textContent = "Connection details are not configured yet. Add your Project URL and Publishable key in this file.";
+    $("signInBtn").disabled = true;
+    $("signUpBtn").disabled = true;
+  }
+
+  function showStatus(id, message, type = "") {
+    const el = $(id);
+    el.textContent = message;
+    el.className = "status " + type;
+  }
+
+  async function loadProducts() {
+    if (!supabaseClient) return;
+    showStatus("productStatus", "Loading products...");
+    const { data, error } = await supabaseClient
+      .from("products")
+      .select("id,name,buying_price,selling_price,current_stock")
+      .order("name");
+
+    if (error) {
+      showStatus("productStatus", "Could not load products: " + error.message, "error");
+      return;
+    }
+
+    const tbody = $("productRows");
+    tbody.replaceChildren();
+
+    if (!data || data.length === 0) {
+      const tr = document.createElement("tr");
+      const td = document.createElement("td");
+      td.colSpan = 4;
+      td.textContent = "No products yet. Add your first product below.";
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+    } else {
+      for (const product of data) {
+        const tr = document.createElement("tr");
+        [product.name, "K" + Number(product.buying_price || 0).toFixed(2),
+          "K" + Number(product.selling_price || 0).toFixed(2),
+          String(product.current_stock ?? 0)].forEach(value => {
+            const td = document.createElement("td");
+            td.textContent = value;
+            tr.appendChild(td);
+          });
+        tbody.appendChild(tr);
+      }
+    }
+    showStatus("productStatus", "Loaded " + (data?.length || 0) + " product(s).", "success");
+  }
+
+  async function updateSession() {
+    if (!supabaseClient) return;
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    $("authCard").classList.toggle("hidden", !!session);
+    $("appArea").classList.toggle("hidden", !session);
+    if (session) {
+      $("signedInAs").textContent = "Signed in as " + (session.user.email || "staff user");
+      await loadProducts();
+    }
+  }
+
+  $("signInBtn").addEventListener("click", async () => {
+    const email = $("email").value.trim();
+    const password = $("password").value;
+    showStatus("authStatus", "Signing in...");
+    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if (error) return showStatus("authStatus", error.message, "error");
+    showStatus("authStatus", "Signed in.", "success");
+    await updateSession();
+  });
+
+  $("signUpBtn").addEventListener("click", async () => {
+    const email = $("email").value.trim();
+    const password = $("password").value;
+    if (password.length < 8) return showStatus("authStatus", "Use a password with at least 8 characters.", "error");
+    showStatus("authStatus", "Creating account...");
+    const { data, error } = await supabaseClient.auth.signUp({ email, password });
+    if (error) return showStatus("authStatus", error.message, "error");
+    if (!data.session) {
+      showStatus("authStatus", "Account created. Check your email to confirm it, then sign in.", "success");
+    } else {
+      showStatus("authStatus", "Account created and signed in.", "success");
+      await updateSession();
+    }
+  });
+
+  $("signOutBtn").addEventListener("click", async () => {
+    const { error } = await supabaseClient.auth.signOut();
+    if (error) showStatus("productStatus", error.message, "error");
+    await updateSession();
+  });
+
+  $("refreshBtn").addEventListener("click", loadProducts);
+
+  $("productForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!supabaseClient) return;
+    const product = {
+      name: $("productName").value.trim(),
+      buying_price: Number($("buyPrice").value),
+      selling_price: Number($("sellPrice").value),
+      current_stock: Number($("currentStock").value)
+    };
+    if (!product.name || product.buying_price < 0 || product.selling_price < 0 ||
+        !Number.isInteger(product.current_stock) || product.current_stock < 0) {
+      return showStatus("saveStatus", "Check the product name, prices and whole-number stock quantity.", "error");
+    }
+
+    $("saveProductBtn").disabled = true;
+    showStatus("saveStatus", "Saving product...");
+    const { error } = await supabaseClient.from("products").insert(product);
+    $("saveProductBtn").disabled = false;
+
+    if (error) return showStatus("saveStatus", "Could not save product: " + error.message, "error");
+    $("productForm").reset();
+    $("buyPrice").value = 0;
+    $("sellPrice").value = 0;
+    $("currentStock").value = 0;
+    showStatus("saveStatus", "Product saved successfully.", "success");
+    await loadProducts();
+  });
+
+  if (supabaseClient) {
+    supabaseClient.auth.onAuthStateChange(() => {
+      setTimeout(updateSession, 0);
+    });
+    updateSession();
+  }
+</script>
+</body>
+</html>
