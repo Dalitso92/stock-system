@@ -1,260 +1,273 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bar Stock Manager</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <style>
-    :root { --wine:#8f1835; --pink:#fff0f3; --ink:#30232a; --muted:#756873; --line:#eadde2; --green:#18794e; }
-    * { box-sizing:border-box; }
-    body { margin:0; font-family:Arial,sans-serif; color:var(--ink); background:#faf7f8; }
-    header { background:var(--wine); color:white; padding:22px 18px; }
-    header .wrap, main { max-width:900px; margin:auto; }
-    h1 { margin:0 0 5px; font-size:25px; }
-    header p { margin:0; opacity:.9; font-size:14px; }
-    main { padding:22px 16px 48px; }
-    .card { background:white; border:1px solid var(--line); border-radius:14px; padding:18px; margin-bottom:16px; box-shadow:0 3px 14px #31101a0a; }
-    h2 { margin:0 0 14px; font-size:18px; }
-    label { display:block; font-size:13px; font-weight:700; margin:12px 0 6px; }
-    input { width:100%; padding:12px; border:1px solid #d8cbd1; border-radius:9px; font-size:16px; background:white; }
-    button { border:0; border-radius:9px; padding:12px 15px; font-weight:700; cursor:pointer; background:var(--wine); color:white; font-size:14px; }
-    button.secondary { background:#f4e8ec; color:var(--wine); }
-    button:disabled { opacity:.55; cursor:not-allowed; }
-    .actions { display:flex; gap:9px; flex-wrap:wrap; margin-top:14px; }
-    .hint, .status { color:var(--muted); font-size:13px; line-height:1.5; }
-    .status { margin-top:12px; white-space:pre-wrap; }
-    .success { color:var(--green); } .error { color:#b42318; }
-    .hidden { display:none; }
-    .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
-    table { width:100%; border-collapse:collapse; font-size:14px; }
-    th,td { text-align:left; padding:11px 8px; border-bottom:1px solid var(--line); }
-    th { color:var(--muted); font-size:12px; text-transform:uppercase; }
-    .table-wrap { overflow-x:auto; }
-    .topline { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
-    @media(max-width:560px) { .grid { grid-template-columns:1fr; } main { padding:16px 12px 35px; } }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bar Stock Manager</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--wine:#8f1835;--wine2:#6f1028;--pink:#fff0f3;--bg:#faf7f8;--ink:#30232a;--muted:#756873;--line:#eadde2;--green:#18794e;--red:#b42318}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Arial,sans-serif}
+header{background:var(--wine);color:white;padding:22px 16px}header .inner,main{max-width:1050px;margin:auto}
+h1{font-size:25px;margin:0 0 5px}header p{margin:0;font-size:14px;opacity:.9}
+main{padding:20px 14px 50px}.card{background:white;border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px;box-shadow:0 3px 14px #31101a0a}
+h2{font-size:18px;margin:0 0 14px}.hint,.muted{color:var(--muted);font-size:13px;line-height:1.5}
+label{display:block;font-weight:700;font-size:13px;margin:12px 0 6px}
+input,select{width:100%;padding:11px;border:1px solid #d8cbd1;border-radius:9px;font-size:15px;background:white;color:var(--ink)}
+button{border:0;border-radius:9px;padding:11px 14px;font-weight:700;cursor:pointer;background:var(--wine);color:white;font-size:14px}
+button:hover{background:var(--wine2)}button.secondary{background:#f4e8ec;color:var(--wine)}button.danger{background:#fff0f0;color:var(--red);border:1px solid #f1cccc}
+button:disabled{opacity:.55;cursor:not-allowed}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}
+.hidden{display:none!important}.status{font-size:13px;margin-top:10px;white-space:pre-wrap;color:var(--muted)}.success{color:var(--green)}.error{color:var(--red)}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.stat{background:var(--pink);border:1px solid var(--line);border-radius:12px;padding:14px}.stat small{display:block;color:var(--muted);font-size:12px}.stat strong{display:block;font-size:23px;margin-top:6px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}.tabs button.active{background:var(--wine2);color:white}.tabs button:not(.active){background:#f4e8ec;color:var(--wine)}
+.panel{display:none}.panel.active{display:block}.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;padding:11px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--muted);font-size:11px;text-transform:uppercase}td .actions{margin:0}.smallbtn{padding:7px 9px;font-size:12px}
+.topline{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.formgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 12px}
+.note{background:#fff8e8;border:1px solid #f1dfb5;padding:11px;border-radius:9px;font-size:13px;line-height:1.5}
+@media(max-width:650px){.grid,.stats{grid-template-columns:1fr 1fr}.formgrid{grid-template-columns:1fr}.card{padding:14px}}
+@media(max-width:420px){.stats{grid-template-columns:1fr 1fr}.stat strong{font-size:19px}}
+</style>
 </head>
 <body>
-<header>
-  <div class="wrap">
-    <h1>Bar Stock Manager</h1>
-    <p>Stock records stored online</p>
-  </div>
-</header>
-
+<header><div class="inner"><h1>Bar Stock Manager</h1><p>Simple stock tracking and daily cash summary</p></div></header>
 <main>
-  <section class="card" id="setupWarning">
-    <h2>Connect your Supabase project</h2>
-    <p class="hint">Open this file in a text editor and replace the two placeholder values in the JavaScript section with your own Project URL and Publishable key. Do not add your Supabase secret key here.</p>
-  </section>
+<section class="card" id="setupWarning">
+<h2>Connect your Supabase project</h2>
+<p class="hint">In the JavaScript section near the bottom, replace the Project URL and Publishable key placeholders. Never put your Supabase secret/service-role key in this file.</p>
+</section>
 
-  <section class="card" id="authCard">
-    <h2>Staff login</h2>
-    <p class="hint">Use an account created for this bar. If email confirmation is enabled in Supabase, confirm the email before signing in.</p>
-    <label for="email">Email address</label>
-    <input id="email" type="email" autocomplete="username" placeholder="staff@example.com">
-    <label for="password">Password</label>
-    <input id="password" type="password" autocomplete="current-password" placeholder="Enter password">
-    <div class="actions">
-      <button id="signInBtn">Sign in</button>
-      <button class="secondary" id="signUpBtn">Create account</button>
-    </div>
-    <div id="authStatus" class="status" role="status"></div>
-  </section>
+<section class="card" id="authCard">
+<h2>Staff login</h2><p class="hint">Sign in with your staff account.</p>
+<label for="email">Email address</label><input id="email" type="email" autocomplete="username" placeholder="staff@example.com">
+<label for="password">Password</label><input id="password" type="password" autocomplete="current-password" placeholder="Password">
+<div class="actions"><button id="signInBtn">Sign in</button><button class="secondary" id="signUpBtn">Create account</button></div>
+<div id="authStatus" class="status"></div>
+</section>
 
-  <section id="appArea" class="hidden">
-    <section class="card">
-      <div class="topline">
-        <div>
-          <h2 style="margin-bottom:4px">Products</h2>
-          <div class="hint" id="signedInAs"></div>
-        </div>
-        <div class="actions" style="margin-top:0">
-          <button class="secondary" id="refreshBtn">Refresh</button>
-          <button class="secondary" id="signOutBtn">Sign out</button>
-        </div>
-      </div>
-      <div id="productStatus" class="status" role="status"></div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Product</th><th>Buy price</th><th>Sell price</th><th>Stock</th></tr></thead>
-          <tbody id="productRows"><tr><td colspan="4">Sign in to load products.</td></tr></tbody>
-        </table>
-      </div>
-    </section>
+<section id="appArea" class="hidden">
+<div class="topline" style="margin-bottom:12px"><div class="muted" id="signedInAs"></div><button class="secondary" id="signOutBtn">Sign out</button></div>
+<div class="stats">
+<div class="stat"><small>Products</small><strong id="totalProducts">0</strong></div>
+<div class="stat"><small>Units in stock</small><strong id="totalStock">0</strong></div>
+<div class="stat"><small>Today's expected cash</small><strong id="todayCash">K0.00</strong></div>
+</div>
+<nav class="tabs">
+<button class="active" data-tab="stockPanel">Stock</button>
+<button data-tab="countPanel">Daily count</button>
+<button data-tab="reportPanel">Reports</button>
+</nav>
 
-    <section class="card">
-      <h2>Add a product</h2>
-      <p class="hint">This adds a product record to the products table. Stock deliveries and sales movements will be added in a later stage.</p>
-      <form id="productForm">
-        <label for="productName">Product name</label>
-        <input id="productName" required maxlength="100" placeholder="e.g. Castle Big">
-        <div class="grid">
-          <div>
-            <label for="buyPrice">Buying price (K)</label>
-            <input id="buyPrice" type="number" min="0" step="0.01" value="0" required>
-          </div>
-          <div>
-            <label for="sellPrice">Selling price (K)</label>
-            <input id="sellPrice" type="number" min="0" step="0.01" value="0" required>
-          </div>
-        </div>
-        <label for="currentStock">Current stock (units)</label>
-        <input id="currentStock" type="number" min="0" step="1" value="0" required>
-        <div class="actions"><button type="submit" id="saveProductBtn">Save product</button></div>
-      </form>
-      <div id="saveStatus" class="status" role="status"></div>
-    </section>
-  </section>
+<section class="card panel active" id="stockPanel">
+<div class="topline"><h2>Stock & products</h2><button class="secondary" id="refreshBtn">Refresh</button></div>
+<p class="hint">Add products, add more stock, or edit and delete products.</p>
+<div class="table-wrap"><table><thead><tr><th>Product</th><th>Selling price</th><th>Available</th><th>Actions</th></tr></thead><tbody id="productRows"><tr><td colspan="4">Loading...</td></tr></tbody></table></div>
+<div id="productStatus" class="status"></div>
+</section>
+
+<section class="card panel" id="countPanel">
+<h2>End-of-day stock count</h2>
+<p class="hint">Enter the number of each product left at closing time. Sold quantity and expected cash are calculated automatically.</p>
+<label for="countDate">Count date</label><input id="countDate" type="date">
+<div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Product</th><th>Opening stock</th><th>Remaining stock</th><th>Sold</th><th>Expected cash</th></tr></thead><tbody id="countRows"><tr><td colspan="5">Loading...</td></tr></tbody></table></div>
+<div class="actions"><button id="saveCountBtn">Save daily count</button></div>
+<div id="countStatus" class="status"></div>
+</section>
+
+<section class="card panel" id="reportPanel">
+<div class="topline"><h2>Daily reports</h2><button class="secondary" id="loadReportsBtn">Refresh reports</button></div>
+<label for="reportDate">Choose date</label><input id="reportDate" type="date">
+<div class="stats" style="margin-top:14px">
+<div class="stat"><small>Units sold</small><strong id="reportUnits">0</strong></div>
+<div class="stat"><small>Expected cash</small><strong id="reportCash">K0.00</strong></div>
+<div class="stat"><small>Products counted</small><strong id="reportProducts">0</strong></div>
+</div>
+<div class="table-wrap"><table><thead><tr><th>Product</th><th>Opening</th><th>Remaining</th><th>Sold</th><th>Cash</th></tr></thead><tbody id="reportRows"><tr><td colspan="5">Choose a date.</td></tr></tbody></table></div>
+<div id="reportStatus" class="status"></div>
+</section>
+
+<section class="card" id="productFormCard">
+<h2 id="productFormTitle">Add a product</h2>
+<form id="productForm">
+<input type="hidden" id="editingId">
+<div class="formgrid">
+<div><label for="productName">Product name</label><input id="productName" required maxlength="100" placeholder="e.g. Mosi"></div>
+<div><label for="sellPrice">Selling price (K)</label><input id="sellPrice" type="number" min="0" step="0.01" required placeholder="e.g. 25"></div>
+<div><label for="currentStock">Opening stock / current stock</label><input id="currentStock" type="number" min="0" step="1" required value="0"></div>
+</div>
+<div class="actions"><button type="submit" id="saveProductBtn">Save product</button><button type="button" class="secondary hidden" id="cancelEditBtn">Cancel edit</button></div>
+</form><div id="saveStatus" class="status"></div>
+</section>
+
+<section class="card">
+<h2>Add stock</h2>
+<p class="hint">Use this when new stock arrives. Just choose the product and enter how many units to add.</p>
+<div class="formgrid">
+<div><label for="addStockProduct">Product</label><select id="addStockProduct"><option value="">Select product</option></select></div>
+<div><label for="stockToAdd">Quantity to add</label><input id="stockToAdd" type="number" min="1" step="1" placeholder="e.g. 24"></div>
+</div>
+<div class="actions"><button id="addStockBtn">Add to stock</button></div><div id="addStockStatus" class="status"></div>
+</section>
+</section>
 </main>
 
 <script>
-  // 1) Replace these placeholders with your own Supabase project details.
-  const SUPABASE_URL = "https://xcqdncbssudmsbtommge.supabase.co";
-  const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_VohyfUQBhrxRKZocA9w1RA_XNaaA4vM";
+const SUPABASE_URL = "PASTE_YOUR_PROJECT_URL_HERE";
+const SUPABASE_PUBLISHABLE_KEY = "PASTE_YOUR_PUBLISHABLE_KEY_HERE";
+const configured = SUPABASE_URL.startsWith("https://") && !SUPABASE_URL.includes("PASTE_") &&
+  SUPABASE_PUBLISHABLE_KEY.startsWith("sb_publishable_") && !SUPABASE_PUBLISHABLE_KEY.includes("PASTE_");
+const $ = id => document.getElementById(id);
+let db = null, products = [];
 
-  const configured =
-    SUPABASE_URL.startsWith("https://") &&
-    !SUPABASE_URL.includes("PASTE_") &&
-    SUPABASE_PUBLISHABLE_KEY.startsWith("sb_publishable_") &&
-    !SUPABASE_PUBLISHABLE_KEY.includes("PASTE_");
+function todayLocal(){const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");}
+function money(n){return "K"+Number(n||0).toFixed(2);}
+function status(id,msg,type=""){const e=$(id);e.textContent=msg;e.className="status "+type;}
+function cell(row,value){const td=document.createElement("td");td.textContent=value;row.appendChild(td);return td;}
+function escapeText(s){return String(s??"");}
 
-  const $ = (id) => document.getElementById(id);
-  let supabaseClient = null;
+if(configured && window.supabase){db=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);$("setupWarning").classList.add("hidden");}
+else{$("authStatus").textContent="Add your Supabase Project URL and Publishable key in this file to connect."; $("signInBtn").disabled=true;$("signUpBtn").disabled=true;}
 
-  if (configured && window.supabase) {
-    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
-    $("setupWarning").classList.add("hidden");
-  } else {
-    $("authStatus").textContent = "Connection details are not configured yet. Add your Project URL and Publishable key in this file.";
-    $("signInBtn").disabled = true;
-    $("signUpBtn").disabled = true;
-  }
-
-  function showStatus(id, message, type = "") {
-    const el = $(id);
-    el.textContent = message;
-    el.className = "status " + type;
-  }
-
-  async function loadProducts() {
-    if (!supabaseClient) return;
-    showStatus("productStatus", "Loading products...");
-    const { data, error } = await supabaseClient
-      .from("products")
-      .select("id,name,buying_price,selling_price,current_stock")
-      .order("name");
-
-    if (error) {
-      showStatus("productStatus", "Could not load products: " + error.message, "error");
-      return;
-    }
-
-    const tbody = $("productRows");
-    tbody.replaceChildren();
-
-    if (!data || data.length === 0) {
-      const tr = document.createElement("tr");
-      const td = document.createElement("td");
-      td.colSpan = 4;
-      td.textContent = "No products yet. Add your first product below.";
-      tr.appendChild(td);
-      tbody.appendChild(tr);
-    } else {
-      for (const product of data) {
-        const tr = document.createElement("tr");
-        [product.name, "K" + Number(product.buying_price || 0).toFixed(2),
-          "K" + Number(product.selling_price || 0).toFixed(2),
-          String(product.current_stock ?? 0)].forEach(value => {
-            const td = document.createElement("td");
-            td.textContent = value;
-            tr.appendChild(td);
-          });
-        tbody.appendChild(tr);
-      }
-    }
-    showStatus("productStatus", "Loaded " + (data?.length || 0) + " product(s).", "success");
-  }
-
-  async function updateSession() {
-    if (!supabaseClient) return;
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    $("authCard").classList.toggle("hidden", !!session);
-    $("appArea").classList.toggle("hidden", !session);
-    if (session) {
-      $("signedInAs").textContent = "Signed in as " + (session.user.email || "staff user");
-      await loadProducts();
-    }
-  }
-
-  $("signInBtn").addEventListener("click", async () => {
-    const email = $("email").value.trim();
-    const password = $("password").value;
-    showStatus("authStatus", "Signing in...");
-    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-    if (error) return showStatus("authStatus", error.message, "error");
-    showStatus("authStatus", "Signed in.", "success");
-    await updateSession();
+async function loadProducts(){
+ const {data,error}=await db.from("products").select("id,name,selling_price,current_stock").order("name");
+ if(error){status("productStatus","Could not load products: "+error.message,"error");return;}
+ products=data||[];renderProducts();updateDashboard();buildCountRows();buildProductSelect();
+ status("productStatus",`Loaded ${products.length} product(s).`,"success");
+}
+function renderProducts(){
+ const body=$("productRows");body.replaceChildren();
+ if(!products.length){const tr=document.createElement("tr");cell(tr,"No products yet. Add one below.");body.appendChild(tr);return;}
+ products.forEach(p=>{
+  const tr=document.createElement("tr");cell(tr,p.name);cell(tr,money(p.selling_price));cell(tr,p.current_stock);
+  const td=document.createElement("td"),wrap=document.createElement("div");wrap.className="actions";
+  const edit=document.createElement("button");edit.className="secondary smallbtn";edit.textContent="Edit";edit.onclick=()=>startEdit(p);
+  const del=document.createElement("button");del.className="danger smallbtn";del.textContent="Delete";del.onclick=()=>deleteProduct(p);
+  wrap.append(edit,del);td.appendChild(wrap);tr.appendChild(td);body.appendChild(tr);
+ });
+}
+function updateDashboard(){
+ $("totalProducts").textContent=products.length;
+ $("totalStock").textContent=products.reduce((s,p)=>s+Number(p.current_stock||0),0);
+}
+function buildProductSelect(){
+ const s=$("addStockProduct");s.replaceChildren(new Option("Select product",""));
+ products.forEach(p=>s.add(new Option(p.name,p.id)));
+}
+function startEdit(p){
+ $("editingId").value=p.id;$("productName").value=p.name;$("sellPrice").value=p.selling_price;$("currentStock").value=p.current_stock;
+ $("productFormTitle").textContent="Edit product";$("saveProductBtn").textContent="Update product";$("cancelEditBtn").classList.remove("hidden");
+ $("productFormCard").scrollIntoView({behavior:"smooth",block:"start"});
+}
+function resetProductForm(){
+ $("productForm").reset();$("editingId").value="";$("currentStock").value=0;
+ $("productFormTitle").textContent="Add a product";$("saveProductBtn").textContent="Save product";$("cancelEditBtn").classList.add("hidden");
+}
+async function deleteProduct(p){
+ if(!confirm(`Delete "${p.name}"? This removes it from current stock. Previous daily reports will remain.`))return;
+ const {error}=await db.from("products").delete().eq("id",p.id);
+ if(error){status("productStatus","Could not delete product: "+error.message,"error");return;}
+ status("productStatus",`${p.name} deleted.`,"success");await loadProducts();
+}
+function buildCountRows(){
+ const body=$("countRows");body.replaceChildren();
+ if(!products.length){const tr=document.createElement("tr");cell(tr,"Add products first.");body.appendChild(tr);return;}
+ products.forEach(p=>{
+  const tr=document.createElement("tr");tr.dataset.id=p.id;tr.dataset.opening=Number(p.current_stock||0);
+  cell(tr,p.name);cell(tr,p.current_stock);
+  const td=document.createElement("td"),input=document.createElement("input");input.type="number";input.min="0";input.step="1";input.max=String(p.current_stock);input.value=p.current_stock;input.className="remainingInput";input.style.minWidth="90px";td.appendChild(input);tr.appendChild(td);
+  const soldTd=cell(tr,"0");soldTd.className="soldValue";
+  const cashTd=cell(tr,money(0));cashTd.className="cashValue";
+  input.addEventListener("input",()=>{
+   const remaining=Math.max(0,Number(input.value||0)),sold=Number(tr.dataset.opening)-remaining;
+   soldTd.textContent=Number.isInteger(sold)&&sold>=0?sold:"Check quantity";
+   cashTd.textContent=sold>=0?money(sold*Number(p.selling_price||0)):"—";
   });
-
-  $("signUpBtn").addEventListener("click", async () => {
-    const email = $("email").value.trim();
-    const password = $("password").value;
-    if (password.length < 8) return showStatus("authStatus", "Use a password with at least 8 characters.", "error");
-    showStatus("authStatus", "Creating account...");
-    const { data, error } = await supabaseClient.auth.signUp({ email, password });
-    if (error) return showStatus("authStatus", error.message, "error");
-    if (!data.session) {
-      showStatus("authStatus", "Account created. Check your email to confirm it, then sign in.", "success");
-    } else {
-      showStatus("authStatus", "Account created and signed in.", "success");
-      await updateSession();
-    }
-  });
-
-  $("signOutBtn").addEventListener("click", async () => {
-    const { error } = await supabaseClient.auth.signOut();
-    if (error) showStatus("productStatus", error.message, "error");
-    await updateSession();
-  });
-
-  $("refreshBtn").addEventListener("click", loadProducts);
-
-  $("productForm").addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (!supabaseClient) return;
-    const product = {
-      name: $("productName").value.trim(),
-      buying_price: Number($("buyPrice").value),
-      selling_price: Number($("sellPrice").value),
-      current_stock: Number($("currentStock").value)
-    };
-    if (!product.name || product.buying_price < 0 || product.selling_price < 0 ||
-        !Number.isInteger(product.current_stock) || product.current_stock < 0) {
-      return showStatus("saveStatus", "Check the product name, prices and whole-number stock quantity.", "error");
-    }
-
-    $("saveProductBtn").disabled = true;
-    showStatus("saveStatus", "Saving product...");
-    const { error } = await supabaseClient.from("products").insert(product);
-    $("saveProductBtn").disabled = false;
-
-    if (error) return showStatus("saveStatus", "Could not save product: " + error.message, "error");
-    $("productForm").reset();
-    $("buyPrice").value = 0;
-    $("sellPrice").value = 0;
-    $("currentStock").value = 0;
-    showStatus("saveStatus", "Product saved successfully.", "success");
-    await loadProducts();
-  });
-
-  if (supabaseClient) {
-    supabaseClient.auth.onAuthStateChange(() => {
-      setTimeout(updateSession, 0);
-    });
-    updateSession();
-  }
+ });
+}
+async function saveDailyCount(){
+ const date=$("countDate").value;if(!date)return status("countStatus","Choose a count date.","error");
+ if(!products.length)return status("countStatus","There are no products to count.","error");
+ const rows=[...$("countRows").querySelectorAll("tr[data-id]")],records=[];
+ for(const tr of rows){
+  const p=products.find(x=>x.id===tr.dataset.id),opening=Number(tr.dataset.opening),input=tr.querySelector(".remainingInput"),remaining=Number(input.value);
+  if(!Number.isInteger(remaining)||remaining<0||remaining>opening)return status("countStatus",`Check remaining stock for ${p.name}. It must be between 0 and ${opening}.`,"error");
+  const sold=opening-remaining;
+  records.push({product_id:p.id,product_name:p.name,count_date:date,opening_stock:opening,remaining_stock:remaining,quantity_sold:sold,selling_price:Number(p.selling_price||0),expected_cash:sold*Number(p.selling_price||0)});
+ }
+ $("saveCountBtn").disabled=true;status("countStatus","Saving daily count...");
+ // Save the day's snapshot first, then update each live stock balance.
+ const {error:countError}=await db.from("daily_stock_counts").upsert(records,{onConflict:"count_date,product_id"});
+ if(countError){$("saveCountBtn").disabled=false;return status("countStatus","Could not save count: "+countError.message,"error");}
+ for(const r of records){
+  const {error}=await db.from("products").update({current_stock:r.remaining_stock}).eq("id",r.product_id);
+  if(error){$("saveCountBtn").disabled=false;await loadProducts();return status("countStatus","Count saved, but a stock balance could not be updated: "+error.message,"error");}
+ }
+ $("saveCountBtn").disabled=false;status("countStatus","Daily count saved. Sold quantities and expected cash have been recorded.","success");
+ await loadProducts();await loadReport(date);
+}
+async function loadReport(date){
+ if(!date)return;
+ const {data,error}=await db.from("daily_stock_counts").select("product_name,opening_stock,remaining_stock,quantity_sold,expected_cash").eq("count_date",date).order("product_name");
+ if(error){status("reportStatus","Could not load report: "+error.message,"error");return;}
+ const rows=data||[];$("reportUnits").textContent=rows.reduce((s,r)=>s+Number(r.quantity_sold||0),0);
+ $("reportCash").textContent=money(rows.reduce((s,r)=>s+Number(r.expected_cash||0),0));$("reportProducts").textContent=rows.length;
+ $("todayCash").textContent=date===todayLocal()?money(rows.reduce((s,r)=>s+Number(r.expected_cash||0),0)):$("todayCash").textContent;
+ const body=$("reportRows");body.replaceChildren();
+ if(!rows.length){const tr=document.createElement("tr");cell(tr,"No daily count saved for this date.");body.appendChild(tr);}
+ rows.forEach(r=>{const tr=document.createElement("tr");cell(tr,r.product_name);cell(tr,r.opening_stock);cell(tr,r.remaining_stock);cell(tr,r.quantity_sold);cell(tr,money(r.expected_cash));body.appendChild(tr);});
+ status("reportStatus",`Showing ${rows.length} product record(s) for ${date}.`,"success");
+}
+async function updateSession(){
+ const {data:{session}}=await db.auth.getSession();
+ $("authCard").classList.toggle("hidden",!!session);$("appArea").classList.toggle("hidden",!session);
+ if(session){$("signedInAs").textContent="Signed in as "+(session.user.email||"staff user");await loadProducts();await loadReport(todayLocal());}
+}
+$("signInBtn").onclick=async()=>{
+ status("authStatus","Signing in...");
+ const {error}=await db.auth.signInWithPassword({email:$("email").value.trim(),password:$("password").value});
+ if(error)return status("authStatus",error.message,"error");await updateSession();
+};
+$("signUpBtn").onclick=async()=>{
+ if($("password").value.length<8)return status("authStatus","Use a password with at least 8 characters.","error");
+ status("authStatus","Creating account...");
+ const {data,error}=await db.auth.signUp({email:$("email").value.trim(),password:$("password").value});
+ if(error)return status("authStatus",error.message,"error");
+ if(!data.session)status("authStatus","Account created. Confirm your email, then sign in.","success");else await updateSession();
+};
+$("signOutBtn").onclick=async()=>{await db.auth.signOut();await updateSession();};
+$("refreshBtn").onclick=loadProducts;
+$("productForm").onsubmit=async e=>{
+ e.preventDefault();const id=$("editingId").value;
+ const name=$("productName").value.trim(),price=Number($("sellPrice").value),stock=Number($("currentStock").value);
+ if(!name||!Number.isFinite(price)||price<0||!Number.isInteger(stock)||stock<0)return status("saveStatus","Enter a product name, valid selling price and whole-number stock quantity.","error");
+ $("saveProductBtn").disabled=true;status("saveStatus","Saving...");
+ let result;
+ if(id) result=await db.from("products").update({name,selling_price:price,current_stock:stock}).eq("id",id);
+ else result=await db.from("products").insert({name,selling_price:price,current_stock:stock,buying_price:0});
+ $("saveProductBtn").disabled=false;
+ if(result.error)return status("saveStatus","Could not save product: "+result.error.message,"error");
+ resetProductForm();status("saveStatus",id?"Product updated.":"Product added.","success");await loadProducts();
+};
+$("cancelEditBtn").onclick=resetProductForm;
+$("addStockBtn").onclick=async()=>{
+ const id=$("addStockProduct").value,qty=Number($("stockToAdd").value),p=products.find(x=>x.id===id);
+ if(!p)return status("addStockStatus","Choose a product.","error");
+ if(!Number.isInteger(qty)||qty<1)return status("addStockStatus","Enter a whole number greater than zero.","error");
+ const {error}=await db.from("products").update({current_stock:Number(p.current_stock||0)+qty}).eq("id",id);
+ if(error)return status("addStockStatus","Could not add stock: "+error.message,"error");
+ $("stockToAdd").value="";status("addStockStatus",`${qty} units added to ${p.name}.`,"success");await loadProducts();
+};
+$("saveCountBtn").onclick=saveDailyCount;
+$("loadReportsBtn").onclick=()=>loadReport($("reportDate").value);
+$("reportDate").onchange=()=>loadReport($("reportDate").value);
+document.querySelectorAll("[data-tab]").forEach(btn=>btn.onclick=()=>{
+ document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("active",b===btn));
+ document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("active",p.id===btn.dataset.tab));
+});
+$("countDate").value=todayLocal();$("reportDate").value=todayLocal();
+if(db){db.auth.onAuthStateChange(()=>setTimeout(updateSession,0));updateSession();}
 </script>
 </body>
 </html>
